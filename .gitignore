@@ -1,0 +1,55 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+*.log
+
+# Virtual environments
+.env/
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+
+# pip-tools
+*.lock
+
+# mypy / pytest / coverage
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# dotenv / config
+.env
+*.env
+.env.*
+
+# pyproject-build artifacts
+build/
+dist/
+*.whl
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# MacOS / Windows junk
+.DS_Store
+Thumbs.db
+
+# Notebooks
+.ipynb_checkpoints/
+
+# GitHub Actions cache
+__github_workflow_cache__/
+
+# PyInstaller
+*.spec

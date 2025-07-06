@@ -9,7 +9,7 @@ __pycache__/
 *.log
 
 # Virtual environments
-.env/
+../.env/
 .venv/
 venv/
 ENV/
@@ -27,7 +27,7 @@ htmlcov/
 coverage.xml
 
 # dotenv / config
-.env
+../.env
 *.env
 .env.*
 

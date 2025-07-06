@@ -5,6 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     alchemy_api_key: str
+    domain: str
+    secret_key_middleware: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

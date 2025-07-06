@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     alchemy_api_key: str
     domain: str
     secret_key_middleware: str
+    redis_url: str
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

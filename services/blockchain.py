@@ -7,6 +7,7 @@ from typing import List, Optional, Dict, Any, Callable, TypeVar
 import websockets
 
 from app.core.config import get_settings
+from app.schemas.blockchain import MemTx
 from web3 import Web3
 from web3.types import BlockData, LogReceipt, TxData, TxReceipt
 
@@ -71,7 +72,7 @@ class BlockchainParser:
             # Deep-copy each tx into mutable dict and attach its logs
             txs = []
             for tx in blk["transactions"]:
-                tx_dict = dict(tx)  # AttributeDict → dict
+                tx_dict = dict(tx)
                 tx_dict["swap_logs"] = tx_log_map.get(tx["hash"], [])
                 txs.append(tx_dict)
 
@@ -134,7 +135,8 @@ class BlockchainParser:
                         data = json.loads(msg)
                         if "params" in data:
                             data = data["params"]["result"]
-                            await client.post(f"{domain}/api/mempool", json=[data])
+                            tx = MemTx(**data).model_dump()
+                            await client.post(f"{domain}/api/mempool", json=[tx])
 
                 finally:
                     print("Closing WebSocket...")

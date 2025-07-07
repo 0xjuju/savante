@@ -2,10 +2,9 @@ from __future__ import annotations
 import orjson
 import time
 from typing import Iterable
-import uuid
 
 
-from .config import get_settings
+from app.core.config import get_settings
 import redis.asyncio as redis
 
 
@@ -37,7 +36,6 @@ class StreamTools:
                 await pipe.xadd(
                     self.stream,
                     {"data": data},
-                    id=f"{now}-{uuid.uuid4().hex[:6]}",
                     maxlen=self.max_length,
                     approximate=True,
                 )
@@ -51,8 +49,7 @@ class StreamTools:
         return await self.redis.exists(f"{self.cache_px}{tx_hash.lower()}") == 1
 
 
-def get_stream_tools(stream_name: str, *, maxlen: int = 100_000, cache_prefix: str, cache_ttl: int = 120
+def get_stream_tools(connection, stream_name: str, *, maxlen: int = 100_000, cache_prefix: str, cache_ttl: int = 120
                      ) -> StreamTools:
     """Factory for StreamTools"""
-    connection = redis.from_url(settings.redis_url, decode_responses=False)
     return StreamTools(stream_name, maxlen, cache_prefix, cache_ttl, connection)

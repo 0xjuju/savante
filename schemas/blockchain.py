@@ -6,9 +6,11 @@ from pydantic import BaseModel, Field
 
 class MemTx(BaseModel):
     hash: str
-    sender: str
+    sender: str = Field(..., alias="from")
     to: str
     input: str
+    gas: str
+    gas_price: str = Field(..., alias="gasPrice")
 
 
 class BotDetectionResult(BaseModel):

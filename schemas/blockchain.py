@@ -13,6 +13,15 @@ class MemTx(BaseModel):
     gas_price: str = Field(..., alias="gasPrice")
 
 
+class MinedTx(BaseModel):
+    block_number: int = Field(..., alias="blockNumber")
+    hash: str
+    sender: str = Field(..., alias="from")
+    to: str
+    input: str
+    value: str = Field(..., description="Native Ethereum value")
+
+
 class BotDetectionResult(BaseModel):
     """Structured result of a single bot‑detection check."""
 

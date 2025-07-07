@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any, Callable, TypeVar
 import websockets
 
 from app.core.config import get_settings
-from app.schemas.blockchain import MemTx
+from app.schemas.blockchain import MemTx, MinedTx
 from pydantic import BaseModel
 from web3 import Web3
 from web3.types import BlockData, LogReceipt, TxData, TxReceipt
@@ -87,7 +87,7 @@ class BlockchainParser:
                         if "params" in data:
                             data = data["params"]["result"]
                             tx = model(**data).model_dump()
-                            await client.post(f"{domain}/{endpoint}", json=[tx])
+                            await client.post(f"{domain}/api/{endpoint}", json=[tx])
 
                 finally:
                     print("Closing WebSocket...")
@@ -160,7 +160,25 @@ class BlockchainParser:
             subscription_type="alchemy_pendingTransactions",
             params={"toAddress": to_addresses},
             model=MemTx,
-            endpoint="api/mempool"
+            endpoint="mempool"
+        )
+
+    async def stream_mined_transactions(self, to_addresses: List[str] = None):
+        """
+
+        :param to_addresses: Address filters
+        """
+
+        # Format list of addresses
+        params = {
+            "addresses": [{"to": address} for address in to_addresses]
+        }
+
+        await self._stream(
+            subscription_type="alchemy_minedTransactions",
+            params=params,
+            model=MinedTx,
+            endpoint="mined-transactions"
         )
 
     async def trace_transaction(self, tx_hash: str) -> Dict[str, Any]:

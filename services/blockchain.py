@@ -133,7 +133,8 @@ class BlockchainParser:
                         msg = await ws.recv()
                         data = json.loads(msg)
                         if "params" in data:
-                            await client.post(f"{domain}/api/mempool", json=data["params"]["result"])
+                            data = data["params"]["result"]
+                            await client.post(f"{domain}/api/mempool", json=[data])
 
                 finally:
                     print("Closing WebSocket...")

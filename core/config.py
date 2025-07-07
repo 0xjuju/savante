@@ -1,6 +1,8 @@
 from functools import lru_cache
 
+from fastapi import Request
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import redis.asyncio as redis
 
 
 class Settings(BaseSettings):
@@ -17,8 +19,8 @@ def get_settings() -> Settings:
     return Settings()
 
 
-
-
+def get_redis(request: Request) -> redis.Redis:
+    return request.app.state.redis
 
 
 

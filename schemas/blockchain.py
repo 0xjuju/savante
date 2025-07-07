@@ -14,7 +14,7 @@ class MemTx(BaseModel):
 
 
 class MinedTx(BaseModel):
-    block_number: int = Field(..., alias="blockNumber")
+    block_number: str = Field(..., alias="blockNumber")
     hash: str
     sender: str = Field(..., alias="from")
     to: str

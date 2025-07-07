@@ -86,6 +86,8 @@ class BlockchainParser:
                         data = json.loads(msg)
                         if "params" in data:
                             data = data["params"]["result"]
+                            if subscription_type == "alchemy_minedTransactions":
+                                data = data["transaction"]
                             tx = model(**data).model_dump()
                             await client.post(f"{domain}/api/{endpoint}", json=[tx])
 

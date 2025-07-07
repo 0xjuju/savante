@@ -8,12 +8,14 @@ import websockets
 
 from app.core.config import get_settings
 from app.schemas.blockchain import MemTx
+from pydantic import BaseModel
 from web3 import Web3
 from web3.types import BlockData, LogReceipt, TxData, TxReceipt
 
 
 settings = get_settings()
 T = TypeVar("T")
+TModel = TypeVar("TModel", bound=BaseModel)
 
 SWAP_SIGNATURES = {
     # Uniswap V2 (factory 0x5C69…): two known signatures
@@ -54,6 +56,42 @@ class BlockchainParser:
     async def _run_io(self, func: Callable[[], T]) -> T:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self.executor, func)
+
+    async def _stream(self, subscription_type: str, params: Dict, model: type[TModel], endpoint: str):
+        """
+        :param subscription_type: websockets subscription type
+        :param params: Stream filters
+        :param model: Pydantic model structure for data
+        :param endpoint: Where we are sending the data
+        :return:
+        """
+        domain = settings.domain
+        id_map = {
+            "alchemy_pendingTransactions": 1,
+            "alchemy_minedTransactions": 2
+        }
+        print("Start listening...")
+        async with websockets.connect(self.WSS) as ws:
+            async with httpx.AsyncClient() as client:
+                await ws.send(json.dumps({
+                    "jsonrpc": "2.0",
+                    "id": id_map[subscription_type],
+                    "method": "eth_subscribe",
+                    "params": [subscription_type, params]
+                }))
+
+                try:
+                    while True:
+                        msg = await ws.recv()
+                        data = json.loads(msg)
+                        if "params" in data:
+                            data = data["params"]["result"]
+                            tx = model(**data).model_dump()
+                            await client.post(f"{domain}/{endpoint}", json=[tx])
+
+                finally:
+                    print("Closing WebSocket...")
+                    await ws.close()
 
     async def add_logs_to_blocks(self, blocks: List[BlockData]) -> List[BlockData]:
         coroutines = [self.get_swap_logs(b["number"], SWAP_SIGNATURES) for b in blocks]
@@ -118,29 +156,12 @@ class BlockchainParser:
         Subscribe to mempool transactions
         :param to_addresses: address filters
         """
-        domain = settings.domain
-        print("Start listening to mempool...")
-        async with websockets.connect(self.WSS) as ws:
-            async with httpx.AsyncClient() as client:
-                await ws.send(json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "eth_subscribe",
-                    "params": ["alchemy_pendingTransactions", {"toAddress": to_addresses}]
-                }))
-
-                try:
-                    while True:
-                        msg = await ws.recv()
-                        data = json.loads(msg)
-                        if "params" in data:
-                            data = data["params"]["result"]
-                            tx = MemTx(**data).model_dump()
-                            await client.post(f"{domain}/api/mempool", json=[tx])
-
-                finally:
-                    print("Closing WebSocket...")
-                    await ws.close()
+        await self._stream(
+            subscription_type="alchemy_pendingTransactions",
+            params={"toAddress": to_addresses},
+            model=MemTx,
+            endpoint="api/mempool"
+        )
 
     async def trace_transaction(self, tx_hash: str) -> Dict[str, Any]:
         headers = {"Content-Type": "application/json"}

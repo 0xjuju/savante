@@ -16,4 +16,4 @@ app.include_router(api_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup():
-    app.state.redis = redis.from_url(settings.redis_url, decode_responses=False)
+    app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)

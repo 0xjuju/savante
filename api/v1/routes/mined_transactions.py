@@ -11,12 +11,24 @@ CACHE_PREFIX = "cache:mempool:seen:"
 
 @router.post("")
 async def mined_transactions(request: Request, r: redis.Redis = Depends(get_redis)):
+
     batch: List[MinedTx] = await request.json()
 
-    for tx in batch:
-        hash = tx["hash"]
+    bundled: List[MinedTx] = list()  # Transactions that are likely bots
+    non_bundled: List[MinedTx] = list()
 
-    return {"status": "200"}
+    for tx in batch:
+        tx_hash = tx["hash"]
+        key = f"{CACHE_PREFIX}{tx_hash.lower()}"
+        if await r.exists(key):
+            non_bundled.append(tx)  # Appeared in mempool
+        else:
+            bundled.append(tx)  # Wasn't seen in mempool cache > likely bot
+
+    return {
+        "mempool_hits": len(non_bundled),
+        "bundled": len(bundled),
+    }
 
 
 

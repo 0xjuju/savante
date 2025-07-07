@@ -3,12 +3,7 @@ import orjson
 import time
 from typing import Iterable
 
-
-from app.core.config import get_settings
 import redis.asyncio as redis
-
-
-settings = get_settings()
 
 
 class StreamTools:

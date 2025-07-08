@@ -2,6 +2,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import json
+
+import redis
 import requests
 from typing import List, Optional, Dict, Any, Callable, TypeVar
 import websockets
@@ -9,11 +11,13 @@ import websockets
 from app.core.config import get_settings
 from app.schemas.blockchain import MemTx, MinedTx
 from pydantic import BaseModel
+from app.utils.batch_utils import Batcher
 from web3 import Web3
 from web3.types import BlockData, LogReceipt, TxData, TxReceipt
 
 
 settings = get_settings()
+http_client = httpx.AsyncClient(timeout=10)
 T = TypeVar("T")
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -57,7 +61,8 @@ class BlockchainParser:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self.executor, func)
 
-    async def _stream(self, subscription_type: str, params: Dict, model: type[TModel], endpoint: str):
+    async def _stream(self, subscription_type: str, params: Dict, model: type[TModel], endpoint: str,
+                      redis_client: redis.Redis):
         """
         :param subscription_type: websockets subscription type
         :param params: Stream filters
@@ -65,12 +70,24 @@ class BlockchainParser:
         :param endpoint: Where we are sending the data
         :return:
         """
+
         domain = settings.domain
+
         id_map = {
             "alchemy_pendingTransactions": 1,
             "alchemy_minedTransactions": 2
         }
-        print("Start listening...")
+
+        batcher = Batcher(
+            name=subscription_type,
+            model=model,
+            endpoint=f"{domain}/api/{endpoint}",
+            batch_period=30,
+            redis=redis_client,
+            http=http_client
+        )
+
+        print(f"Start listening... {subscription_type}")
         async with websockets.connect(self.WSS) as ws:
             async with httpx.AsyncClient() as client:
                 await ws.send(json.dumps({
@@ -88,8 +105,10 @@ class BlockchainParser:
                             data = data["params"]["result"]
                             if subscription_type == "alchemy_minedTransactions":
                                 data = data["transaction"]
-                            tx = model(**data).model_dump()
-                            await client.post(f"{domain}/api/{endpoint}", json=[tx])
+
+                            await batcher.enqueue(data)
+
+                            # await client.post(f"{domain}/api/{endpoint}", json=[tx])
 
                 finally:
                     print("Closing WebSocket...")
@@ -153,21 +172,25 @@ class BlockchainParser:
         }
         return any(log['address'].lower() in dex_addresses.values() for log in tx_receipt['logs'])
 
-    async def stream_mempool(self, to_addresses: List[str] = None):
+    async def stream_mempool(self, redis_client: redis.Redis, to_addresses: List[str] = None):
         """
         Subscribe to mempool transactions
+        :param redis_client: Message queue
         :param to_addresses: address filters
         """
         await self._stream(
             subscription_type="alchemy_pendingTransactions",
             params={"toAddress": to_addresses},
             model=MemTx,
-            endpoint="mempool"
+            endpoint="mempool",
+            redis_client=redis_client
         )
 
-    async def stream_mined_transactions(self, to_addresses: List[str] = None):
+    async def stream_mined_transactions(self, redis_client: redis.Redis, to_addresses: List[str] = None):
         """
+        Stream mined transactions to endpoint
 
+        :param redis_client: Message queue
         :param to_addresses: Address filters
         """
 
@@ -180,7 +203,8 @@ class BlockchainParser:
             subscription_type="alchemy_minedTransactions",
             params=params,
             model=MinedTx,
-            endpoint="mined-transactions"
+            endpoint="mined-transactions",
+            redis_client=redis_client
         )
 
     async def trace_transaction(self, tx_hash: str) -> Dict[str, Any]:

@@ -25,10 +25,13 @@ async def mined_transactions(request: Request, r: redis.Redis = Depends(get_redi
         else:
             bundled.append(tx)  # Wasn't seen in mempool cache > likely bot
 
-    return {
+    res = {
         "mempool_hits": len(non_bundled),
         "bundled": len(bundled),
     }
+
+    print(res)
+    return res
 
 
 

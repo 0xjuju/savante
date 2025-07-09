@@ -7,9 +7,9 @@ import redis.asyncio as redis
 
 class Settings(BaseSettings):
     alchemy_api_key: str
-    domain: str
+    domain: str = "http://127.0.0.1:8000"
     secret_key_middleware: str
-    redis_url: str
+    redis_url: str = "redis://localhost:6379"
     build_dataset: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

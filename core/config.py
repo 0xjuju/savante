@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     domain: str
     secret_key_middleware: str
     redis_url: str
+    build_dataset: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

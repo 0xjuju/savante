@@ -1,4 +1,4 @@
-# Savante
+# Savante (In-progess)
 
 **Savante** is an LLM-driven trading bot that makes trades using data from Ethereum main-net. It ingests real-time 
 on-chain data, combines it with machine-learning insights, and decides when to buy, sell, or hold ETH.

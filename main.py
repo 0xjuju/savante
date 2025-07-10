@@ -25,13 +25,13 @@ async def startup():
     app.state.stream_tasks = [
         # start listener for mempool transactions
         asyncio.create_task(
-            parser.stream_mempool(redis_client=app.state.redis, to_addresses=parser.ROUTERS),
+            parser.stream_mempool(redis_client=app.state.redis, to_addresses=parser.ROUTERS + parser.AGGREGATORS),
             name="mempool"
         ),
 
         # start listener for mined transactions
         asyncio.create_task(
-            parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=parser.ROUTERS),
+            parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=parser.ROUTERS + parser.AGGREGATORS),
             name="mined_transactions"
         )
     ]

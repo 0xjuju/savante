@@ -4,6 +4,14 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class LogTx(BaseModel):
+    address: str
+    block_number: str = Field(..., alias="blockNumber")
+    data: str
+    topics: list[str]
+    transaction_hash: str = Field(..., alias="transactionHash")
+
+
 class MemTx(BaseModel):
     hash: str
     sender: str = Field(..., alias="from")

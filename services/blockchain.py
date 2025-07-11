@@ -5,11 +5,11 @@ import json
 
 import redis
 import requests
-from typing import List, Optional, Dict, Any, Callable, TypeVar
+from typing import Optional, Any, Callable, TypeVar
 import websockets
 
 from app.core.config import get_settings
-from app.schemas.blockchain import MemTx, MinedTx
+from app.schemas.blockchain import LogTx, MemTx, MinedTx
 from pydantic import BaseModel
 from app.utils.batch_utils import Batcher
 from web3 import Web3
@@ -54,11 +54,20 @@ class BlockchainParser:
 
         return f"https://{self.ALCHEMY_MAP[self.chain]}-mainnet.g.alchemy.com/v2/{settings.alchemy_api_key}"
 
+    def _get_signatures(self) -> list[str]:
+        map_sigs = {
+            "base": [
+                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+            ]
+        }
+
+        return map_sigs[self.chain]
+
     async def _run_io(self, func: Callable[[], T]) -> T:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self.executor, func)
 
-    async def _stream(self, subscription_type: str, params: Dict, model: type[TModel], endpoint: str,
+    async def _stream(self, subscription_type: str, params: dict, model: type[TModel], endpoint: str,
                       redis_client: redis.Redis):
         """
         :param subscription_type: websockets subscription type
@@ -72,7 +81,8 @@ class BlockchainParser:
 
         id_map = {
             "alchemy_pendingTransactions": 1,
-            "alchemy_minedTransactions": 2
+            "alchemy_minedTransactions": 2,
+            "logs": 1
         }
 
         batcher = Batcher(
@@ -108,16 +118,16 @@ class BlockchainParser:
                 print("Closing WebSocket...")
                 await ws.close()
 
-    async def add_logs_to_blocks(self, blocks: List[BlockData]) -> List[BlockData]:
+    async def add_logs_to_blocks(self, blocks: list[BlockData]) -> list[BlockData]:
         coroutines = [self.get_swap_logs(b["number"], SWAP_SIGNATURES) for b in blocks]
         logs = await asyncio.gather(*coroutines)
 
-        enriched_blocks: List[Dict[str, Any]] = []
+        enriched_blocks: list[dict[str, Any]] = []
         for block, swap_logs in zip(blocks, logs):
-            blk: Dict[str, Any] = dict(block)
+            blk: dict[str, Any] = dict(block)
 
             # Build tx_hash → [logs] map
-            tx_log_map: Dict[bytes, list] = {}
+            tx_log_map: dict[bytes, list] = {}
             for lg in swap_logs:
                 tx_hash = lg["transactionHash"]
                 tx_log_map.setdefault(tx_hash, []).append(lg)
@@ -137,7 +147,7 @@ class BlockchainParser:
     async def get_block(self, block_number: int, full_tx: bool = True) -> BlockData:
         return await self._run_io(lambda: self.web3.eth.get_block(block_number, full_transactions=full_tx))
 
-    async def get_swap_logs(self, block_number: int, signatures: set[str]) -> List[LogReceipt]:
+    async def get_swap_logs(self, block_number: int, signatures: set[str]) -> list[LogReceipt]:
         return await self._run_io(
             lambda: self.web3.eth.get_logs({
                 "fromBlock": block_number,
@@ -152,7 +162,7 @@ class BlockchainParser:
     async def get_transaction_receipt(self, tx_hash: str) -> TxReceipt:
         return await self._run_io(lambda: self.web3.eth.get_transaction_receipt(tx_hash))
 
-    async def get_recent_blocks(self, count: int = 5, start_block: Optional[int] = None) -> List[BlockData]:
+    async def get_recent_blocks(self, count: int = 5, start_block: Optional[int] = None) -> list[BlockData]:
 
         latest = start_block or self.web3.eth.block_number
         tasks = [self.get_block(latest - i) for i in range(count)]
@@ -166,7 +176,7 @@ class BlockchainParser:
         }
         return any(log['address'].lower() in dex_addresses.values() for log in tx_receipt['logs'])
 
-    async def stream_mempool(self, redis_client: redis.Redis, to_addresses: List[str] = None):
+    async def stream_mempool(self, redis_client: redis.Redis, to_addresses: list[str] = None):
         """
         Subscribe to mempool transactions
         :param redis_client: Message queue
@@ -180,7 +190,7 @@ class BlockchainParser:
             redis_client=redis_client
         )
 
-    async def stream_mined_transactions(self, redis_client: redis.Redis, to_addresses: List[str] = None):
+    async def stream_mined_transactions(self, redis_client: redis.Redis, to_addresses: list[str] = None):
         """
         Stream mined transactions to endpoint
 
@@ -201,7 +211,27 @@ class BlockchainParser:
             redis_client=redis_client
         )
 
-    async def trace_transaction(self, tx_hash: str) -> Dict[str, Any]:
+    async def stream_swaps(self, redis_client: redis.Redis, to_addresses: list[str] = None):
+        """
+         Subscribe to mempool transactions
+        :param redis_client: Message queue
+        :param to_addresses: address filters
+        """
+
+        logs = {
+            "address": to_addresses,
+            "topics": self._get_signatures()
+        }
+
+        await self._stream(
+            subscription_type="logs",
+            params=logs,
+            model=LogTx,
+            endpoint="mined-transactions",
+            redis_client=redis_client
+        )
+
+    async def trace_transaction(self, tx_hash: str) -> dict[str, Any]:
         headers = {"Content-Type": "application/json"}
         payload = {
             "jsonrpc": "2.0",

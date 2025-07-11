@@ -101,30 +101,27 @@ class BlockchainParser:
 
         print(f"Start listening... {subscription_type}")
         async with websockets.connect(self.WSS) as ws:
-            async with httpx.AsyncClient() as client:
-                await ws.send(json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": id_map[subscription_type],
-                    "method": "eth_subscribe",
-                    "params": [subscription_type, params]
-                }))
+            await ws.send(json.dumps({
+                "jsonrpc": "2.0",
+                "id": id_map[subscription_type],
+                "method": "eth_subscribe",
+                "params": [subscription_type, params]
+            }))
 
-                try:
-                    while True:
-                        msg = await ws.recv()
-                        data = json.loads(msg)
-                        if "params" in data:
-                            data = data["params"]["result"]
-                            if subscription_type == "alchemy_minedTransactions":
-                                data = data["transaction"]
+            try:
+                while True:
+                    msg = await ws.recv()
+                    data = json.loads(msg)
+                    if "params" in data:
+                        data = data["params"]["result"]
+                        if subscription_type == "alchemy_minedTransactions":
+                            data = data["transaction"]
 
-                            await batcher.enqueue(data)
+                        await batcher.enqueue(data)
 
-                            # await client.post(f"{domain}/api/{endpoint}", json=[tx])
-
-                finally:
-                    print("Closing WebSocket...")
-                    await ws.close()
+            finally:
+                print("Closing WebSocket...")
+                await ws.close()
 
     async def add_logs_to_blocks(self, blocks: List[BlockData]) -> List[BlockData]:
         coroutines = [self.get_swap_logs(b["number"], SWAP_SIGNATURES) for b in blocks]

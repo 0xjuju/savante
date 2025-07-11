@@ -1,7 +1,7 @@
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.services.blockchain import BlockchainParser
-from app.utils.router_address_map import ROUTER_MAP
+from app.utils.router_address_map import get_all_addresses
 import asyncio
 from fastapi import FastAPI
 import redis.asyncio as redis
@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 settings = get_settings()
 app = FastAPI(title="API")
+app.state.tasks: list[asyncio.Task] = []
 
 
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key_middleware)
@@ -21,22 +22,31 @@ app.include_router(api_router, prefix="/api")
 async def startup():
     app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
 
-    parser = BlockchainParser("ethereum")
-    router_contracts = ROUTER_MAP["ethereum"]
-    router_contracts: list[str] = router_contracts["dex"] + router_contracts["aggregators"]
+    ethereum_parser = BlockchainParser("ethereum")
+    base_parser = BlockchainParser("base")
+
+    eth_router_contracts: list[str] = get_all_addresses("ethereum")
+    base_router_contracts: list[str] = get_all_addresses("base")
 
     app.state.stream_tasks = [
         # start listener for mempool transactions
         asyncio.create_task(
-            parser.stream_mempool(redis_client=app.state.redis, to_addresses=router_contracts),
+            ethereum_parser.stream_mempool(redis_client=app.state.redis, to_addresses=eth_router_contracts),
             name="mempool"
         ),
 
         # start listener for mined transactions
+        # Ethereum
         asyncio.create_task(
-            parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=router_contracts),
+            ethereum_parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=eth_router_contracts),
             name="mined_transactions"
-        )
+        ),
+
+        # Base
+        asyncio.create_task(
+            base_parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=base_router_contracts),
+            name="mined_transactions"
+        ),
     ]
 
 

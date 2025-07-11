@@ -33,24 +33,26 @@ SWAP_SIGNATURES = {
 
 class BlockchainParser:
     def __init__(self, chain: str, max_workers: int = 25):
-        self.chain = chain.lower()
-        self.rpc_url = self._get_rpc_url()
-        self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
-
-        self.WSS = f"wss://eth-mainnet.g.alchemy.com/v2/{settings.alchemy_api_key}"
-
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-
-    def _get_rpc_url(self) -> str:
-        ALCHEMY_MAP = {
+        self.ALCHEMY_MAP = {
             "ethereum": "eth",
             "base": "base",
             "arbitrum": "arb",
         }
-        if self.chain not in ALCHEMY_MAP:
+
+        self.chain = chain.lower()
+        self.rpc_url = self._get_rpc_url()
+        self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
+
+        self.WSS = f"wss://{self.ALCHEMY_MAP[self.chain]}-mainnet.g.alchemy.com/v2/{settings.alchemy_api_key}"
+
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+
+    def _get_rpc_url(self) -> str:
+
+        if self.chain not in self.ALCHEMY_MAP:
             raise ValueError(f"Unsupported chain: {self.chain}")
 
-        return f"https://{ALCHEMY_MAP[self.chain]}-mainnet.g.alchemy.com/v2/{settings.alchemy_api_key}"
+        return f"https://{self.ALCHEMY_MAP[self.chain]}-mainnet.g.alchemy.com/v2/{settings.alchemy_api_key}"
 
     async def _run_io(self, func: Callable[[], T]) -> T:
         loop = asyncio.get_running_loop()
@@ -77,12 +79,12 @@ class BlockchainParser:
             name=subscription_type,
             model=model,
             endpoint=f"{domain}/api/{endpoint}",
-            batch_period=30,
+            batch_period=10,
             redis=redis_client,
             http=http_client
         )
 
-        print(f"Start listening... {subscription_type}")
+        print(f"({self.chain}) Start listening... {subscription_type}")
         async with websockets.connect(self.WSS) as ws:
             await ws.send(json.dumps({
                 "jsonrpc": "2.0",

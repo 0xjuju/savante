@@ -1,6 +1,7 @@
 from app.api.v1.api import api_router
 from app.core.config import get_settings
 from app.services.blockchain import BlockchainParser
+from app.utils.router_address_map import ROUTER_MAP
 import asyncio
 from fastapi import FastAPI
 import redis.asyncio as redis
@@ -21,17 +22,19 @@ async def startup():
     app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
 
     parser = BlockchainParser("ethereum")
+    router_contracts = ROUTER_MAP["ethereum"]
+    router_contracts: list[str] = router_contracts["dex"] + router_contracts["aggregators"]
 
     app.state.stream_tasks = [
         # start listener for mempool transactions
         asyncio.create_task(
-            parser.stream_mempool(redis_client=app.state.redis, to_addresses=parser.ROUTERS + parser.AGGREGATORS),
+            parser.stream_mempool(redis_client=app.state.redis, to_addresses=router_contracts),
             name="mempool"
         ),
 
         # start listener for mined transactions
         asyncio.create_task(
-            parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=parser.ROUTERS + parser.AGGREGATORS),
+            parser.stream_mined_transactions(redis_client=app.state.redis, to_addresses=router_contracts),
             name="mined_transactions"
         )
     ]

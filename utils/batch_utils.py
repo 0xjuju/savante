@@ -20,7 +20,7 @@ class Batcher(Generic[T]):
     failed batches.
     """
 
-    def __init__(self, *, name: str, model: Type[T], endpoint: str, batch_period: float = 30.0, max_retries: int = 5,
+    def __init__(self, *, name: str, model: Type[T], endpoint: str, chain: str, batch_period: float = 30.0, max_retries: int = 5,
                  redis_prefix: str = "failed:", redis: redis.Redis, http: httpx.AsyncClient):
 
         self.name = name
@@ -33,6 +33,7 @@ class Batcher(Generic[T]):
         self.q: asyncio.Queue[T] = asyncio.Queue()
         self.redis = redis
         self.http = http
+        self.chain = chain
 
         self._task = asyncio.create_task(self._flusher())
 
@@ -59,18 +60,23 @@ class Batcher(Generic[T]):
         if batch:
             await self._post_with_retry(batch)
 
-    async def _post_with_retry(self, batch: list[dict], attempt: int = 1):
+    async def _post_with_retry(self, batch: dict[str, list[dict]], attempt: int = 1):
+        batch = {
+            "chain": self.chain,
+            "data": batch
+        }
+        length = len(batch["data"])
         try:
             r = await self.http.post(self.endpoint, json=batch)
             r.raise_for_status()
-            print("sent %d items OK", len(batch))
+            # print(f"sent {length} items OK")
         except Exception as e:
             if attempt > self.max_retries:
                 key = f"{self.redis_key_pref}{int(time.time())}:{uuid.uuid4().hex}"
                 await self.redis.set(key, json.dumps(batch), ex=86400)
-                print("stored failed batch %s (%d rows) – %s", key, len(batch), e)
+                print(f"stored failed batch {key} ({length} rows) – {e}")
                 return
             backoff = 2**attempt
-            print("retry %d in %.1fs – %s", attempt, backoff, e)
+            print(f"retry {attempt} in {backoff} – {e}")
             await asyncio.sleep(backoff)
             await self._post_with_retry(batch, attempt + 1)

@@ -16,6 +16,7 @@ ROUTER_MAP = {
             "0xdef1c0ded9bec7f1a1670819833240f027b25eff",  # Matcha
             "0xdef1c0ded9bec7f1a1670819833240f027b25eff",  # ParaSwap
             "0xb98325b54cB1B06C2bD6581D61A48eDbCeD95e0C",  # Bebop
+            "",  # Fluid Finance
         ]
     },
 

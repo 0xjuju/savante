@@ -54,14 +54,20 @@ class BlockchainParser:
 
         return f"https://{self.ALCHEMY_MAP[self.chain]}-mainnet.g.alchemy.com/v2/{settings.alchemy_api_key}"
 
-    def _get_signatures(self) -> list[str]:
-        map_sigs = {
-            "base": [
-                "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-            ]
-        }
+    @staticmethod
+    def _get_signatures() -> list[str]:
+        sigs = [
+            "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67",
+            "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822",
+            "0x8b3e96f2b889fa771c53c981b40daf005f63f637f1869f707052d15a3dd97140",
+            "0xd013ca23e77a65003c2c659c5442c00c805371b7fc1ebd4c206c41d1536bd90b",
+            "0x769f4ac79fc2a7fdfe0f2b27434977aaf4f89a517fc672d4103f04c05f107224",
+            "0xa9ba3ffe0b6c366b81232caab38605a0699ad5398d6cce76f91ee809e322dafc",
+            "0x3e1d5e5686e0d1cabb4bcb83fdbe57c97349678fc1fd595d1870eebc0b2fac45",
+            "0x9ea7ed25e4b8692d3bbf2e42100437b3dce58c15ddf437c1e099cb5b04a08f94",
+        ]
 
-        return map_sigs[self.chain]
+        return sigs
 
     async def _run_io(self, func: Callable[[], T]) -> T:
         loop = asyncio.get_running_loop()
@@ -91,7 +97,8 @@ class BlockchainParser:
             endpoint=f"{domain}/api/{endpoint}",
             batch_period=10,
             redis=redis_client,
-            http=http_client
+            http=http_client,
+            chain=self.chain
         )
 
         print(f"({self.chain}) Start listening... {subscription_type}")
@@ -107,6 +114,9 @@ class BlockchainParser:
                 while True:
                     msg = await ws.recv()
                     data = json.loads(msg)
+                    if "error" in data:
+                        raise ValueError(data)
+
                     if "params" in data:
                         data = data["params"]["result"]
                         if subscription_type == "alchemy_minedTransactions":
@@ -211,23 +221,21 @@ class BlockchainParser:
             redis_client=redis_client
         )
 
-    async def stream_swaps(self, redis_client: redis.Redis, to_addresses: list[str] = None):
+    async def stream_swaps(self, redis_client: redis.Redis):
         """
          Subscribe to mempool transactions
         :param redis_client: Message queue
-        :param to_addresses: address filters
         """
 
         logs = {
-            "address": to_addresses,
-            "topics": self._get_signatures()
+            "topics": [self._get_signatures()]
         }
 
         await self._stream(
             subscription_type="logs",
             params=logs,
             model=LogTx,
-            endpoint="mined-transactions",
+            endpoint="blockchain/logs",
             redis_client=redis_client
         )
 

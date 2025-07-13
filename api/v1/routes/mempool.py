@@ -18,8 +18,8 @@ async def read_mempool(request: Request):
         cache_ttl=120,
         connection=request.app.state.redis
     )
-
-    batch: List[MemTx] = await request.json()
+    data = await request.json()
+    batch: List[MemTx] = data["data"]
     await stream_tools.add_batch(batch)
 
     return {"processed": len(batch)}

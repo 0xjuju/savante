@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from .routes import mempool
-from .routes import mined_transactions
+from .routes import blockchain_transactions
 
 
 api_router = APIRouter()
